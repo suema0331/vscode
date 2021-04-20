@@ -56,6 +56,8 @@ import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { listenStream } from 'vs/base/common/stream';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { IEditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
+import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -444,7 +446,8 @@ export class GlobalCompareResourcesAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ITextModelService private readonly textModelService: ITextModelService
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService
 	) {
 		super(id, label);
 	}
@@ -454,40 +457,47 @@ export class GlobalCompareResourcesAction extends Action {
 		const activeResource = EditorResourceAccessor.getOriginalUri(activeInput);
 		if (activeResource && this.textModelService.canHandleResource(activeResource)) {
 
-			// Compare with next editor that opens
-			const toDispose = this.editorService.overrideOpenEditor({
-				open: editor => {
+			// Define a one-time override that has highest priority
+			// and matches every resource to be able to create a
+			// diff editor to show the comparison.
+			const editorOverrideDisposable = this.editorOverrideService.registerContributionPoint('*', Number.MAX_VALUE, {
+				id: GlobalCompareResourcesAction.ID,
+				label: GlobalCompareResourcesAction.LABEL,
+				priority: ContributedEditorPriority.exclusive,
+				detail: '',
+				active: () => false,
+				instanceOf: () => false
+			}, {}, resource => {
 
-					// Only once!
-					toDispose.dispose();
+				// Only once!
+				editorOverrideDisposable.dispose();
 
-					// Open editor as diff
-					const resource = EditorResourceAccessor.getOriginalUri(editor);
-					if (resource && this.textModelService.canHandleResource(resource)) {
-						return {
-							override: this.editorService.openEditor({
-								leftResource: activeResource,
-								rightResource: resource,
-								options: { override: EditorOverride.DISABLED, pinned: true }
-							})
-						};
-					}
-
-					// Otherwise stay on current resource
-					this.notificationService.info(nls.localize('fileToCompareNoFile', "Please select a file to compare with."));
+				// Open editor as diff if the selected editor resource
+				// can be handled by the text model service
+				if (this.textModelService.canHandleResource(resource)) {
 					return {
-						override: this.editorService.openEditor({
-							resource: activeResource,
+						editor: this.editorService.createEditorInput({
+							leftResource: activeResource,
+							rightResource: resource,
 							options: { override: EditorOverride.DISABLED, pinned: true }
 						})
 					};
 				}
+
+				// Otherwise stay on current resource
+				this.notificationService.info(nls.localize('fileToCompareNoFile', "Please select a file to compare with."));
+				return {
+					editor: this.editorService.createEditorInput({
+						resource: activeResource,
+						options: { override: EditorOverride.DISABLED, pinned: true }
+					})
+				};
 			});
 
-			once(this.quickInputService.onHide)((async () => {
+			once(this.quickInputService.onHide)(async () => {
 				await timeout(0); // prevent race condition with editor
-				toDispose.dispose();
-			}));
+				editorOverrideDisposable.dispose();
+			});
 
 			// Bring up quick access
 			this.quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });
