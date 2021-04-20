@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -23,17 +22,16 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITerminalProfile, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { DropdownWithPrimaryActionViewItem } from 'vs/base/browser/ui/dropdown/DropdownWithPrimaryActionViewItem';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -61,7 +59,6 @@ export class TerminalViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService
@@ -194,7 +191,7 @@ export class TerminalViewPane extends ViewPane {
 				this._tabButtons.dispose();
 			}
 			const actions = this._getInitialTabActionBarArgs();
-			this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, this._keybindingService, this._notificationService, actions.dropdownIcon || 'codicon-chevron-down');
+			this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, actions.dropdownIcon || 'codicon-chevron-down');
 			return this._tabButtons;
 		}
 		return super.getActionViewItem(action);
@@ -202,7 +199,7 @@ export class TerminalViewPane extends ViewPane {
 
 	private async _updateTabActionBar(profiles: ITerminalProfile[]): Promise<void> {
 		const actions = await this._getTabActionBarArgs(profiles);
-		this._tabButtons?.update(actions.dropdownAction, actions.dropdownMenuActions, actions.dropdownIcon);
+		this._tabButtons?.updateDropdown(actions.dropdownAction, actions.dropdownMenuActions, actions.dropdownIcon);
 	}
 
 	private _getTabActionBarArgs(profiles: ITerminalProfile[]): {
@@ -364,63 +361,4 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 function getProfileSelectOptionItems(terminalService: ITerminalService): ISelectOptionItem[] {
 	const detectedProfiles = terminalService.getAvailableProfiles();
 	return detectedProfiles?.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem)) || [];
-}
-
-export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
-	private _primaryAction: MenuEntryActionViewItem;
-	private _dropdown: DropdownMenuActionViewItem;
-	private _container: HTMLElement | null = null;
-	constructor(
-		primaryAction: MenuItemAction,
-		dropdownAction: MenuItemAction,
-		dropdownMenuActions: IAction[],
-		private readonly _className: string,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		dropdownIcon?: string
-	) {
-		super(null, primaryAction);
-		this._primaryAction = new MenuEntryActionViewItem(primaryAction, this._keybindingService, this._notificationService);
-		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, _contextMenuService, { menuAsChild: true, classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'] });
-	}
-
-	override render(container: HTMLElement): void {
-		this._container = container;
-		super.render(this._container);
-		this.element = DOM.append(this._container, DOM.$(''));
-		this.element.className = this._className;
-		this._primaryAction.render(this.element);
-		this._dropdown.render(this.element);
-		this._stylize();
-	}
-
-	private _stylize(): void {
-		if (!this.element || !this._dropdown.element || !this._primaryAction.element) {
-			return;
-		}
-		const elementStyle = this.element.style;
-		elementStyle.display = 'flex';
-		elementStyle.flexDirection = 'row';
-		const dropdownStyle = this._dropdown.element.style;
-		dropdownStyle.paddingLeft = '0px';
-		dropdownStyle.fontSize = '12px';
-		dropdownStyle.maxWidth = '6px';
-		dropdownStyle.lineHeight = '16px';
-		dropdownStyle.marginLeft = '0px';
-		const primaryActionStyle = this._primaryAction.element.style;
-		primaryActionStyle.marginRight = '0px';
-		if (this._primaryAction.element.children[0]) {
-			(this._primaryAction.element.children[0] as HTMLElement).style.paddingRight = '0px';
-		}
-	}
-
-	update(dropdownAction: MenuItemAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {
-		this._dropdown?.dispose();
-		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuService, { menuAsChild: true, classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'] });
-		if (this.element) {
-			this._dropdown.render(this.element);
-			this._stylize();
-		}
-	}
 }
