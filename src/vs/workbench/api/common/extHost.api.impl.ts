@@ -643,9 +643,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					if ('pty' in nameOrOptions) {
 						return extHostTerminalService.createExtensionTerminal(nameOrOptions);
 					}
-					if (nameOrOptions.message) {
-						checkProposedApiEnabled(extension);
-					}
 					if (nameOrOptions.icon) {
 						checkProposedApiEnabled(extension);
 					}
@@ -1060,17 +1057,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.notebookDocuments.map(d => d.apiNotebook);
 			},
-			registerNotebookSerializer(viewType, serializer, options) {
+			registerNotebookSerializer(viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options);
+				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options, extension.enableProposedApi ? registration : undefined);
 			},
-			registerNotebookContentProvider: (viewType, provider, options) => {
+			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) => {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider, options);
+				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider, options, extension.enableProposedApi ? registration : undefined);
 			},
-			registerNotebookCellStatusBarItemProvider: (selector: vscode.NotebookSelector, provider: vscode.NotebookCellStatusBarItemProvider) => {
+			registerNotebookCellStatusBarItemProvider: (notebookType: string, provider: vscode.NotebookCellStatusBarItemProvider) => {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.registerNotebookCellStatusBarItemProvider(extension, selector, provider);
+				return extHostNotebook.registerNotebookCellStatusBarItemProvider(extension, notebookType, provider);
 			},
 			createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
 				checkProposedApiEnabled(extension);
@@ -1084,7 +1081,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeNotebookCells(listener, thisArgs, disposables);
 			},
-			onDidChangeCellExecutionState(listener, thisArgs?, disposables?) {
+			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);
 			},
@@ -1099,10 +1096,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createConcatTextDocument(notebook, selector) {
 				checkProposedApiEnabled(extension);
 				return new ExtHostNotebookConcatDocument(extHostNotebook, extHostDocuments, notebook, selector);
-			},
-			createNotebookCellExecutionTask(uri: vscode.Uri, index: number, kernelId: string): vscode.NotebookCellExecutionTask | undefined {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.createNotebookCellExecution(uri, index, kernelId);
 			},
 			createNotebookController(id, viewType, label, executeHandler, preloads) {
 				checkProposedApiEnabled(extension);
@@ -1251,12 +1244,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookCellMetadata: extHostTypes.NotebookCellMetadata,
 			NotebookCellData: extHostTypes.NotebookCellData,
 			NotebookData: extHostTypes.NotebookData,
+			NotebookKernelPreload: extHostTypes.NotebookKernelPreload,
 			NotebookCellStatusBarAlignment: extHostTypes.NotebookCellStatusBarAlignment,
 			NotebookEditorRevealType: extHostTypes.NotebookEditorRevealType,
 			NotebookCellOutput: extHostTypes.NotebookCellOutput,
 			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
 			NotebookCellStatusBarItem: extHostTypes.NotebookCellStatusBarItem,
 			NotebookControllerAffinity: extHostTypes.NotebookControllerAffinity,
+			PortAttributes: extHostTypes.PortAttributes,
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestItemStatus: extHostTypes.TestItemStatus,
 			TestResultState: extHostTypes.TestResultState,
